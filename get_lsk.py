@@ -11,6 +11,18 @@ from scipy import signal
 _epsa = _opzero = 0.0000001
 
 
+def get_lsk(img, winsize, nbors, alpha, h):
+
+    """
+    Support gray image.
+    """
+
+    gx, gy = gradient(img)
+    c11, c12, c22 = cov_matrix(gx, gy, winsize, alpha)
+    lskfeatures = lark(c11, c12, c22, nbors, h)
+    return lskfeatures
+
+
 def gradient(matrix):
 
     xfilter = numpy.array([[-0.5, 0, 0.5]])
@@ -50,7 +62,8 @@ def edge_mirror(matrix, winsize):
 def cov_matrix(gx, gy, winsize, alpha):
 
     """
-    gradients covariance matrix
+    Gradients Covariance Matrix
+
     | gx^2 gx*gy |
     | gx*gy gy^2 |
 
@@ -115,15 +128,36 @@ def cov_matrix(gx, gy, winsize, alpha):
     return c11, c12, c22
 
 
-def lark(cov_matirx):
+def lark(c11, c12, c22, winnbors, h):
 
+    halfnbors = int(winnbors / 2)
+    rows, cols = c11.shape
+    lskfeatures = numpy.zeros((rows, cols, winnbors, winnbors))
 
+    c11 = edge_mirror(c11, winnbors)
+    c12 = edge_mirror(c12, winnbors)
+    c22 = edge_mirror(c22, winnbors)
 
+    for r in range(halfnbors, rows + halfnbors):
+        for c in range(halfnbors, cols + halfnbors):
+            for i in range(-halfnbors, halfnbors + 1):
+                for j in range(-halfnbors, halfnbors + 1):
+                    x = r + i
+                    y = c + j
+                    s = -(c11[x, y] * i ** 2 + 2 * c12[x, y] * i * j +c22[x, y] * j ** 2) / h
+                    lskfeatures[r - halfnbors, c - halfnbors] = math.exp(s)
+
+    # Normalization
+    for i in range(rows):
+        for j in range(cols):
+            lskfeatures[i, j, :, :] = lskfeatures[i, j, :, :] / numpy.sum(lskfeatures[i, j, :, :])
+
+    return lskfeatures.reshape((rows, cols, -1))
 
 
 if __name__ == '__main__':
     img = numpy.array([[1, 2, 3, 4],
                        [5, 6, 7, 8],
                        [9, 10, 11, 12]])
-    gx, gy = gradient(img)
-    c11, c12, c22 = cov_matrix(gx, gy, 3, 0.4)
+    lsk = get_lsk(img, 3, 3, 0.4, 0.5)
+    print(lsk)
